@@ -1,0 +1,140 @@
+# Self-contained PR Summary workflow — hello world test
+# Generates an AI-powered summary for every PR using GitHub Models API.
+#
+# Prerequisites:
+#   1. A GitHub classic PAT with `repo` + `workflow` scopes
+#      (GitHub Models access is account-level, not a PAT scope)
+#   2. Store it as a repo secret named GH_PAT_TOKEN
+#   3. Push this file, create a branch, open a PR → summary appears automatically
+
+name: PR Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  generate-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gather PR context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          MAX_CHARS: "12000"
+        run: |
+          set -euo pipefail
+
+          echo "::group::Fetching PR metadata"
+          PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json title --jq '.title')
+          PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json body --jq '.body')
+          echo "::endgroup::"
+
+          # Skip if summary already exists (idempotent)
+          if echo "$PR_BODY" | grep -q '## AI-Generated Summary'; then
+            echo "Summary already exists. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          echo "::group::Fetching changed files and commits"
+          FILES=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json files --jq '[.files[].path] | join("\n")')
+          COMMITS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json commits --jq '[.commits[].messageHeadline] | join("\n")')
+          echo "::endgroup::"
+
+          echo "::group::Fetching diff (truncated to $MAX_CHARS chars)"
+          DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO" | head -c "$MAX_CHARS")
+          echo "::endgroup::"
+
+          # Write context to files (avoids shell escaping issues)
+          printf '%s' "$PR_TITLE"  > /tmp/pr_title.txt
+          printf '%s' "$PR_BODY"   > /tmp/pr_body.txt
+          printf '%s' "$FILES"     > /tmp/pr_files.txt
+          printf '%s' "$COMMITS"   > /tmp/pr_commits.txt
+          printf '%s' "$DIFF"      > /tmp/pr_diff.txt
+
+      - name: Generate summary via GitHub Models API
+        if: steps.context.outputs.skip != 'true'
+        id: summary
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+          MODEL: "openai/gpt-4o-mini"
+        run: |
+          set -euo pipefail
+
+          PR_TITLE=$(cat /tmp/pr_title.txt)
+          FILES=$(cat /tmp/pr_files.txt)
+          COMMITS=$(cat /tmp/pr_commits.txt)
+          DIFF=$(cat /tmp/pr_diff.txt)
+
+          PROMPT="You are a senior developer reviewing a pull request. Generate a concise PR summary in markdown.
+
+          PR Title: ${PR_TITLE}
+
+          Changed files:
+          ${FILES}
+
+          Commit messages:
+          ${COMMITS}
+
+          Diff (may be truncated):
+          ${DIFF}
+
+          Provide:
+          1. **Overview** — one paragraph explaining what this PR does and why
+          2. **Key Changes** — bullet list of the most important changes
+          3. **Files Modified** — grouped by area/purpose
+          4. **Risk/Notes** — anything reviewers should pay attention to"
+
+          # Build JSON payload safely with jq (avoids injection from PR content)
+          PAYLOAD=$(jq -n \
+            --arg model "$MODEL" \
+            --arg prompt "$PROMPT" \
+            '{
+              model: $model,
+              messages: [{role: "user", content: $prompt}],
+              max_tokens: 1024,
+              temperature: 0.3
+            }')
+
+          RESPONSE=$(curl -sf https://models.github.ai/inference/chat/completions \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          printf '%s' "$SUMMARY" > /tmp/pr_summary.txt
+
+      - name: Update PR body with summary
+        if: steps.context.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          SUMMARY=$(cat /tmp/pr_summary.txt)
+          EXISTING_BODY=$(cat /tmp/pr_body.txt)
+
+          NEW_BODY="${EXISTING_BODY}
+
+          ---
+          ## AI-Generated Summary
+          ${SUMMARY}
+          "
+
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --body "$NEW_BODY"
+          echo "✅ PR summary added to PR #${PR_NUMBER}"
