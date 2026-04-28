@@ -14,3 +14,6 @@ When you open a pull request, GitHub Actions will:
 1. Create a GitHub classic PAT with `repo` + `workflow` scopes
 2. Add it as a repo secret named `GH_PAT_TOKEN`
 3. Push this repo, create a branch, open a PR — summary appears automatically
+## Test
+
+This is a test change to trigger the PR summary workflow.
