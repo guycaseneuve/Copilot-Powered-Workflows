@@ -33,6 +33,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           MAX_CHARS: "12000"
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
 
@@ -64,6 +65,7 @@ jobs:
           printf '%s' "$FILES"     > /tmp/pr_files.txt
           printf '%s' "$COMMITS"   > /tmp/pr_commits.txt
           printf '%s' "$DIFF"      > /tmp/pr_diff.txt
+          printf '%s' "$HEAD_REF"  > /tmp/pr_branch.txt
 
       - name: Generate summary via GitHub Models API
         if: steps.context.outputs.skip != 'true'
@@ -78,19 +80,37 @@ jobs:
           FILES=$(cat /tmp/pr_files.txt)
           COMMITS=$(cat /tmp/pr_commits.txt)
           DIFF=$(cat /tmp/pr_diff.txt)
+          BRANCH=$(cat /tmp/pr_branch.txt)
 
-          # Load SKILL.md as the system prompt (falls back to a default if missing)
+          # Load SKILL.md as the system prompt (persona & behavior)
           SKILL_FILE="${GITHUB_WORKSPACE}/.github/SKILL.md"
           if [ -f "$SKILL_FILE" ]; then
             SYSTEM_PROMPT=$(cat "$SKILL_FILE")
             echo "Using SKILL.md as system prompt"
           else
-            SYSTEM_PROMPT="You are a senior developer reviewing a pull request. Generate a concise PR summary in markdown with sections: Overview, Key Changes, Files Modified, Risk & Review Notes."
+            SYSTEM_PROMPT="You are a senior developer reviewing a pull request. Generate a concise PR summary in markdown with sections: Summary, Changes identified, Why this matters, Validation notes."
             echo "SKILL.md not found — using default system prompt"
           fi
 
-          # Build the user message with PR context
-          USER_MSG="Summarize this pull request:
+          # Load PROMPT.md as the output template (optional)
+          PROMPT_FILE="${GITHUB_WORKSPACE}/.github/PROMPT.md"
+          if [ -f "$PROMPT_FILE" ]; then
+            # Substitute placeholders with actual PR context
+            OUTPUT_TEMPLATE=$(cat "$PROMPT_FILE")
+            OUTPUT_TEMPLATE="${OUTPUT_TEMPLATE//\{BRANCH\}/$BRANCH}"
+            OUTPUT_TEMPLATE="${OUTPUT_TEMPLATE//\{PR_TITLE\}/$PR_TITLE}"
+            echo "Using PROMPT.md as output template"
+          else
+            OUTPUT_TEMPLATE=""
+            echo "PROMPT.md not found — no output template"
+          fi
+
+          # Build the user message with PR context + output template
+          USER_MSG="Compose a PR description for this pull request.
+          ${OUTPUT_TEMPLATE:+
+          ${OUTPUT_TEMPLATE}
+          }
+          Source branch: ${BRANCH}
 
           PR Title: ${PR_TITLE}
 
@@ -114,7 +134,7 @@ jobs:
                 {role: "system", content: $system},
                 {role: "user", content: $user}
               ],
-              max_tokens: 1024,
+              max_tokens: 2048,
               temperature: 0.3
             }')
 
@@ -137,6 +157,15 @@ jobs:
 
           SUMMARY=$(cat /tmp/pr_summary.txt)
           EXISTING_BODY=$(cat /tmp/pr_body.txt)
+
+          # Extract the Title: line from the AI output and update PR title
+          AI_TITLE=$(echo "$SUMMARY" | grep -m1 '^Title:' | sed 's/^Title:[[:space:]]*//')
+          if [ -n "$AI_TITLE" ]; then
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --title "$AI_TITLE"
+            echo "✅ PR title set to: $AI_TITLE"
+            # Remove the Title line from the summary body
+            SUMMARY=$(echo "$SUMMARY" | sed '0,/^Title:/{/^Title:/d}')
+          fi
 
           NEW_BODY="${EXISTING_BODY}
 
