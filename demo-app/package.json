@@ -1,0 +1,20 @@
+{
+  "name": "demo-vulnerable-app",
+  "version": "1.0.0",
+  "description": "Intentionally vulnerable demo app for security-autofix pipeline testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "express": "4.16.0",
+    "lodash": "4.17.11",
+    "moment": "2.26.0",
+    "serialize-javascript": "1.7.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0"
+  }
+}
