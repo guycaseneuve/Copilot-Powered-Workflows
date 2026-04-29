@@ -173,25 +173,23 @@ jobs:
           USER_BODY=$(cat /tmp/pr_body.txt)
 
           # Extract the Title: line from the AI output and update PR title
-          AI_TITLE=$(echo "$SUMMARY" | grep -m1 '^Title:' | sed 's/^Title:[[:space:]]*//')
+          AI_TITLE=$(echo "$SUMMARY" | grep -m1 '^Title:' | sed 's/^Title:[[:space:]]*//' | sed 's/`//g')
           if [ -n "$AI_TITLE" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" --title "$AI_TITLE"
-            echo "✅ PR title set to: $AI_TITLE"
+            echo "✅ PR title set"
             # Remove the Title line from the summary body
             SUMMARY=$(echo "$SUMMARY" | sed '0,/^Title:/{/^Title:/d}')
           fi
 
-          # Build new body: user content + fresh AI summary (replaces old summary)
-          if [ -n "$USER_BODY" ]; then
-            NEW_BODY="${USER_BODY}
+          # Build new body via file to avoid quote/escaping issues in AI output
+          {
+            if [ -n "$USER_BODY" ]; then
+              printf '%s\n' "$USER_BODY"
+              printf '\n---\n'
+            fi
+            printf '## AI-Generated Summary\n'
+            printf '%s\n' "$SUMMARY"
+          } > /tmp/new_body.txt
 
----
-## AI-Generated Summary
-${SUMMARY}"
-          else
-            NEW_BODY="## AI-Generated Summary
-${SUMMARY}"
-          fi
-
-          gh pr edit "$PR_NUMBER" --repo "$REPO" --body "$NEW_BODY"
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --body-file /tmp/new_body.txt
           echo "✅ PR summary updated on PR #${PR_NUMBER}"
