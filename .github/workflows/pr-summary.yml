@@ -1,5 +1,6 @@
-# Self-contained PR Summary workflow — hello world test
+# Self-contained PR Summary workflow
 # Generates an AI-powered summary for every PR using GitHub Models API.
+# Regenerates on every push — strips old AI summary, preserves user-written content.
 #
 # Prerequisites:
 #   1. A GitHub classic PAT with `repo` + `workflow` scopes
@@ -42,13 +43,10 @@ jobs:
           PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json body --jq '.body')
           echo "::endgroup::"
 
-          # Skip if summary already exists (idempotent)
-          if echo "$PR_BODY" | grep -q '## AI-Generated Summary'; then
-            echo "Summary already exists. Skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+          # Strip any existing AI-Generated Summary section (preserve user content above)
+          CLEAN_BODY=$(printf '%s' "$PR_BODY" | awk '/^---$/{found=1} /^## AI-Generated Summary/{found=1} !found{print}')
+          # Trim trailing blank lines
+          CLEAN_BODY=$(printf '%s' "$CLEAN_BODY" | sed -e 's/[[:space:]]*$//')
 
           echo "::group::Fetching changed files and commits"
           FILES=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json files --jq '[.files[].path] | join("\n")')
@@ -59,16 +57,27 @@ jobs:
           DIFF=$(gh pr diff "$PR_NUMBER" --repo "$REPO" | head -c "$MAX_CHARS")
           echo "::endgroup::"
 
+          echo "::group::Fetching PR comments and reviews"
+          COMMENTS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments \
+            --jq '[.comments[] | "\(.author.login): \(.body[0:500])"] | join("\n---\n")' 2>/dev/null || echo "")
+          REVIEWS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviews \
+            --jq '[.reviews[] | select(.body != "") | "\(.author.login) (\(.state)): \(.body[0:500])"] | join("\n---\n")' 2>/dev/null || echo "")
+          ALL_COMMENTS="${COMMENTS}${REVIEWS:+
+          ---
+          ${REVIEWS}}"
+          ALL_COMMENTS=$(printf '%s' "$ALL_COMMENTS" | head -c 3000)
+          echo "::endgroup::"
+
           # Write context to files (avoids shell escaping issues)
-          printf '%s' "$PR_TITLE"  > /tmp/pr_title.txt
-          printf '%s' "$PR_BODY"   > /tmp/pr_body.txt
-          printf '%s' "$FILES"     > /tmp/pr_files.txt
-          printf '%s' "$COMMITS"   > /tmp/pr_commits.txt
-          printf '%s' "$DIFF"      > /tmp/pr_diff.txt
-          printf '%s' "$HEAD_REF"  > /tmp/pr_branch.txt
+          printf '%s' "$PR_TITLE"      > /tmp/pr_title.txt
+          printf '%s' "$CLEAN_BODY"    > /tmp/pr_body.txt
+          printf '%s' "$FILES"         > /tmp/pr_files.txt
+          printf '%s' "$COMMITS"       > /tmp/pr_commits.txt
+          printf '%s' "$DIFF"          > /tmp/pr_diff.txt
+          printf '%s' "$HEAD_REF"      > /tmp/pr_branch.txt
+          printf '%s' "$ALL_COMMENTS"  > /tmp/pr_comments.txt
 
       - name: Generate summary via GitHub Models API
-        if: steps.context.outputs.skip != 'true'
         id: summary
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
@@ -81,6 +90,7 @@ jobs:
           COMMITS=$(cat /tmp/pr_commits.txt)
           DIFF=$(cat /tmp/pr_diff.txt)
           BRANCH=$(cat /tmp/pr_branch.txt)
+          COMMENTS=$(cat /tmp/pr_comments.txt)
 
           # Load SKILL.md as the system prompt (persona & behavior)
           SKILL_FILE="${GITHUB_WORKSPACE}/.github/SKILL.md"
@@ -121,7 +131,12 @@ jobs:
           ${COMMITS}
 
           Diff (may be truncated):
-          ${DIFF}"
+          ${DIFF}
+          ${COMMENTS:+
+
+          Discussion context (PR comments and reviews):
+          ${COMMENTS}
+          }"
 
           # Build JSON payload safely with jq (avoids injection from PR content)
           PAYLOAD=$(jq -n \
@@ -147,7 +162,6 @@ jobs:
           printf '%s' "$SUMMARY" > /tmp/pr_summary.txt
 
       - name: Update PR body with summary
-        if: steps.context.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -156,7 +170,7 @@ jobs:
           set -euo pipefail
 
           SUMMARY=$(cat /tmp/pr_summary.txt)
-          EXISTING_BODY=$(cat /tmp/pr_body.txt)
+          USER_BODY=$(cat /tmp/pr_body.txt)
 
           # Extract the Title: line from the AI output and update PR title
           AI_TITLE=$(echo "$SUMMARY" | grep -m1 '^Title:' | sed 's/^Title:[[:space:]]*//')
@@ -167,12 +181,17 @@ jobs:
             SUMMARY=$(echo "$SUMMARY" | sed '0,/^Title:/{/^Title:/d}')
           fi
 
-          NEW_BODY="${EXISTING_BODY}
+          # Build new body: user content + fresh AI summary (replaces old summary)
+          if [ -n "$USER_BODY" ]; then
+            NEW_BODY="${USER_BODY}
 
-          ---
-          ## AI-Generated Summary
-          ${SUMMARY}
-          "
+---
+## AI-Generated Summary
+${SUMMARY}"
+          else
+            NEW_BODY="## AI-Generated Summary
+${SUMMARY}"
+          fi
 
           gh pr edit "$PR_NUMBER" --repo "$REPO" --body "$NEW_BODY"
-          echo "✅ PR summary added to PR #${PR_NUMBER}"
+          echo "✅ PR summary updated on PR #${PR_NUMBER}"
