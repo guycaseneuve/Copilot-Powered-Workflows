@@ -31,7 +31,7 @@ permissions:
   contents: write
   pull-requests: write
   security-events: write
-  issues: write
+  issues: write 
 
 jobs:
   # ─────────────────────────────────────────────
