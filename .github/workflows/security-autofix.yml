@@ -91,34 +91,73 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────
-  # Job 2: Dependabot / Dependency scan
+  # Job 2: Dependency scan (npm audit on source branch)
   # ─────────────────────────────────────────────
   dependabot-scan:
     name: Dependency Scan
     runs-on: ubuntu-latest
+    needs: [resolve-branch]
     steps:
-      - name: Checkout
+      - name: Checkout source branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-branch.outputs.target_branch }}
 
-      - name: Fetch Dependabot alerts
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
-          REPO: ${{ github.repository }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run npm audit on demo-app
+        working-directory: demo-app
         run: |
           set -euo pipefail
-          mkdir -p results
+          mkdir -p ../results
 
-          echo "Fetching Dependabot alerts for $REPO..."
-          ALERTS=$(gh api "/repos/${REPO}/dependabot/alerts" \
-            --jq '[.[] | select(.state == "open")]' \
-            2>/dev/null || echo "[]")
+          echo "Installing dependencies for demo-app..."
+          npm install --ignore-scripts 2>/dev/null || true
 
-          echo "$ALERTS" > results/dependabot.json
+          echo "Running npm audit on demo-app (source branch: ${{ needs.resolve-branch.outputs.target_branch }})..."
 
-          COUNT=$(echo "$ALERTS" | jq 'length')
-          echo "Found $COUNT open Dependabot alerts"
+          # Run npm audit in JSON format; exit code != 0 means vulnerabilities found
+          npm audit --json > /tmp/npm-audit-raw.json 2>/dev/null || true
 
-      - name: Upload Dependabot results
+          # Transform npm audit output into the same schema the aggregate script expects
+          jq '[
+            .vulnerabilities | to_entries[] |
+            {
+              name: .key,
+              severity: .value.severity,
+              range: .value.range,
+              fix_available: (.value.fixAvailable // false),
+              via: [.value.via[] | if type == "object" then {title: .title, url: .url, severity: .severity, cwe: .cwe, cvss_score: .cvss.score} else {title: .} end]
+            }
+          ]' /tmp/npm-audit-raw.json > /tmp/npm-audit-parsed.json 2>/dev/null || echo "[]" > /tmp/npm-audit-parsed.json
+
+          # Convert to Dependabot-compatible format for the aggregate script
+          jq '[.[] | {
+            security_advisory: {
+              summary: (.via[0].title // "Vulnerability in \(.name)"),
+              severity: .severity,
+              cve_id: null,
+              references: [.via[] | select(.url) | {url: .url}]
+            },
+            security_vulnerability: {
+              package: {name: .name, ecosystem: "npm"},
+              vulnerable_version_range: .range,
+              first_patched_version: (if .fix_available then "available" else null end)
+            },
+            state: "open",
+            dependency: {
+              package: {name: .name, ecosystem: "npm"},
+              manifest_path: "demo-app/package.json"
+            }
+          }]' /tmp/npm-audit-parsed.json > ../results/dependabot.json 2>/dev/null || echo "[]" > ../results/dependabot.json
+
+          COUNT=$(jq 'length' ../results/dependabot.json)
+          echo "Found $COUNT vulnerabilities in demo-app on branch ${{ needs.resolve-branch.outputs.target_branch }}"
+
+      - name: Upload dependency scan results
         uses: actions/upload-artifact@v4
         with:
           name: dependabot-json
