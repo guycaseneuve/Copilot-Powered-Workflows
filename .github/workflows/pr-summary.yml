@@ -12,6 +12,7 @@ name: PR Summary
 
 on:
   pull_request:
+    branches: [ devops/gcaseneuve/prep-for-demo ]
     types: [opened, synchronize]
 
 permissions:
