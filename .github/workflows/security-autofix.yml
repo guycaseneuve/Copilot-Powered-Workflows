@@ -360,6 +360,28 @@ jobs:
           npx eslint . --fix 2>&1 | tee /tmp/eslint-fix-output.txt || true
           echo "eslint --fix complete"
 
+      - name: Build and test
+        working-directory: demo-app
+        run: |
+          set -euo pipefail
+          echo "Installing dependencies on fix branch..."
+          npm install
+
+          echo "Running lint check..."
+          npx eslint . || echo "::warning::Lint issues remain after auto-fix"
+
+          echo "Running npm audit (post-fix)..."
+          npm audit --audit-level=critical || echo "::warning::Critical vulnerabilities still present after fix"
+
+          if grep -q '"test"' package.json; then
+            echo "Running tests..."
+            npm test
+          else
+            echo "No test script defined — skipping tests"
+          fi
+
+          echo "✅ Build and test passed on fix branch"
+
       - name: Create fix branch and PR
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
