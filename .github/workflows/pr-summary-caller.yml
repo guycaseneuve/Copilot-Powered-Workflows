@@ -1,35 +1,35 @@
-# Caller workflow: triggers the reusable PR summary workflow on every PR
-#
-# Place this file in each repo that should get auto PR summaries.
-# Update the `uses:` line to point to wherever you host the reusable workflow.
+# # Caller workflow: triggers the reusable PR summary workflow on every PR
+# #
+# # Place this file in each repo that should get auto PR summaries.
+# # Update the `uses:` line to point to wherever you host the reusable workflow.
 
-name: PR Summary
+# name: PR Summary
 
-on:
-  pull_request:
-    types: [opened, synchronize]
+# on:
+#   pull_request:
+#     types: [opened, synchronize]
 
-permissions:
-  pull-requests: write
-  contents: read
+# permissions:
+#   pull-requests: write
+#   contents: read
 
-jobs:
-  summarize:
-    # ─── Point this to your shared workflow repo ───
-    # Format: {owner}/{repo}/.github/workflows/{file}@{ref}
-    uses: YOUR_ORG/YOUR_SHARED_REPO/.github/workflows/pr-summary-reusable.yml@main
-    with:
-      pr_number: ${{ github.event.pull_request.number }}
-      repo: ${{ github.repository }}
-      # Choose provider: 'github-models' (default) or 'azure-openai'
-      ai_provider: "github-models"
-      # Model ID — adjust as needed
-      model: "openai/gpt-4o-mini"
-      # Max diff characters sent to the model (default 12000)
-      max_diff_chars: 12000
-    secrets:
-      # PAT with repo + models:read scopes
-      token: ${{ secrets.GH_PAT_TOKEN }}
-      # Only needed if ai_provider is 'azure-openai':
-      # ai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-      # ai_api_key: ${{ secrets.AZURE_OPENAI_KEY }}
+# jobs:
+#   summarize:
+#     # ─── Point this to your shared workflow repo ───
+#     # Format: {owner}/{repo}/.github/workflows/{file}@{ref}
+#     uses: YOUR_ORG/YOUR_SHARED_REPO/.github/workflows/pr-summary-reusable.yml@main
+#     with:
+#       pr_number: ${{ github.event.pull_request.number }}
+#       repo: ${{ github.repository }}
+#       # Choose provider: 'github-models' (default) or 'azure-openai'
+#       ai_provider: "github-models"
+#       # Model ID — adjust as needed
+#       model: "openai/gpt-4o-mini"
+#       # Max diff characters sent to the model (default 12000)
+#       max_diff_chars: 12000
+#     secrets:
+#       # PAT with repo + models:read scopes
+#       token: ${{ secrets.GH_PAT_TOKEN }}
+#       # Only needed if ai_provider is 'azure-openai':
+#       # ai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+#       # ai_api_key: ${{ secrets.AZURE_OPENAI_KEY }}
