@@ -92,27 +92,27 @@ jobs:
           BRANCH=$(cat /tmp/pr_branch.txt)
           COMMENTS=$(cat /tmp/pr_comments.txt)
 
-          # Load SKILL.md as the system prompt (persona & behavior)
-          SKILL_FILE="${GITHUB_WORKSPACE}/.github/SKILL.md"
+          # Load skill file as the system prompt (persona & behavior)
+          SKILL_FILE="${GITHUB_WORKSPACE}/.github/skills/pr-summary.md"
           if [ -f "$SKILL_FILE" ]; then
             SYSTEM_PROMPT=$(cat "$SKILL_FILE")
-            echo "Using SKILL.md as system prompt"
+            echo "Using skills/pr-summary.md as system prompt"
           else
             SYSTEM_PROMPT="You are a senior developer reviewing a pull request. Generate a concise PR summary in markdown with sections: Summary, Changes identified, Why this matters, Validation notes."
-            echo "SKILL.md not found — using default system prompt"
+            echo "skills/pr-summary.md not found — using default system prompt"
           fi
 
-          # Load PROMPT.md as the output template (optional)
-          PROMPT_FILE="${GITHUB_WORKSPACE}/.github/PROMPT.md"
+          # Load prompt template as the output format (optional)
+          PROMPT_FILE="${GITHUB_WORKSPACE}/.github/prompts/pr-summary.md"
           if [ -f "$PROMPT_FILE" ]; then
             # Substitute placeholders with actual PR context
             OUTPUT_TEMPLATE=$(cat "$PROMPT_FILE")
             OUTPUT_TEMPLATE="${OUTPUT_TEMPLATE//\{BRANCH\}/$BRANCH}"
             OUTPUT_TEMPLATE="${OUTPUT_TEMPLATE//\{PR_TITLE\}/$PR_TITLE}"
-            echo "Using PROMPT.md as output template"
+            echo "Using prompts/pr-summary.md as output template"
           else
             OUTPUT_TEMPLATE=""
-            echo "PROMPT.md not found — no output template"
+            echo "prompts/pr-summary.md not found — no output template"
           fi
 
           # Build the user message with PR context + output template

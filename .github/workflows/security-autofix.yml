@@ -152,7 +152,7 @@ jobs:
             DEP_ARG="--dependabot $DEPENDABOT_FILE"
           fi
 
-          python scripts/aggregate_findings.py \
+          python .github/scripts/aggregate_findings.py \
             $SARIF_ARG \
             $DEP_ARG \
             --output results/aggregated-findings.json
@@ -178,7 +178,7 @@ jobs:
           SCAN_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Load skill as system prompt
-          SKILL_FILE=".github/security-autofix-skill.md"
+          SKILL_FILE=".github/skills/security-autofix.md"
           if [ -f "$SKILL_FILE" ]; then
             SYSTEM_PROMPT=$(cat "$SKILL_FILE")
           else
@@ -186,7 +186,7 @@ jobs:
           fi
 
           # Load prompt template
-          PROMPT_FILE=".github/security-autofix-prompt.md"
+          PROMPT_FILE=".github/prompts/security-autofix.md"
           if [ -f "$PROMPT_FILE" ]; then
             OUTPUT_TEMPLATE=$(cat "$PROMPT_FILE")
             OUTPUT_TEMPLATE="${OUTPUT_TEMPLATE//\{REPO\}/$REPO}"
