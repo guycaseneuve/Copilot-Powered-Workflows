@@ -11,9 +11,9 @@ name: Security Autofix
 
 on:
   push:
-    branches: [main]
+    branches: [devops/gcaseneuve/prep-for-demo]
   pull_request:
-    branches: [main] 
+    branches: [devops/gcaseneuve/prep-for-demo] 
   schedule:
     - cron: "0 6 * * 1"  # Weekly Monday 6am UTC
   workflow_dispatch:
