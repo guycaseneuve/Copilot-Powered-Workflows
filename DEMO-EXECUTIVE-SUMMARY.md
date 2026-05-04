@@ -179,11 +179,10 @@ flowchart TD
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Security scan frequency | Ad-hoc or quarterly | Every code change + weekly |
-| Time to fix known vulnerabilities | Days to weeks | Minutes |
+| Time to fix known vulnerabilities | Days | Minutes |
 | Time to understand a code change | 15–30 min per review | Seconds |
 | Audit documentation | Manual, after the fact | Automatic, real-time |
-| Developer effort required | Must run separate tools | Zero — runs in background |
+| Tech Lead govern flow | Dependent on tech lead availability | Auto runs — runs in background |
 
 ---
 
