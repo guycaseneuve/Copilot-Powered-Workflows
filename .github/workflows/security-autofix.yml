@@ -705,8 +705,8 @@ jobs:
           **Triggered by:** ${{ github.event_name }}
           **Branch:** ${{ github.ref_name }}
 
----
-ISSUEBODY
+          ---
+          "
 
           if [ -f results/security-report.md ]; then
             BODY="${BODY}
