@@ -1,10 +1,20 @@
 # AI-Powered DevOps Automation — Executive Summary
 
-> **Important:** What you are seeing today is a **Proof of Concept (PoC)**. This demonstrates the capabilities and potential value of Agentic-AI-Powered automation in our development workflow. It is **not production-ready** and is not intended for immediate rollout. There is room for refinement, additional configuration, and planning before any implementation into live environments.
+> **Important:** What you are seeing today is a **Proof of Concept (PoC)**. This demonstrates the capabilities and potential value of AI-powered automation in our development workflow. It is **not production-ready** and is not intended for immediate rollout. There is room for refinement, additional configuration, and planning before any implementation into live environments.
+
+## Problem Statement
+
+Many development teams still rely on processes that are manual, inconsistent, and difficult to scale.
+
+- **Current-state challenge:** Code reviews are manual, security scans are ad hoc, and documentation is inconsistent.
+- **Security risk:** Vulnerabilities are often discovered too late, increasing exposure and making remediation more expensive.
+- **Review friction:** Reviewers do not always have clear context on what changed, why it changed, and how to validate it.
+
+Security issues are easier and cheaper to address during development than after release, but without automation, scanning and documentation depend too heavily on individual effort and timing.
 
 ## What We Built
 
-Two Agentic-AI-Powered capabilities that run automatically inside the development workflow — requiring zero additional effort from developers:
+Two AI-powered capabilities that run automatically inside the development workflow — requiring zero additional effort from developers:
 
 1. **Security Autofix Pipeline** — Continuously scans every code change for vulnerabilities, generates a prioritized report, auto-fixes what it can, and alerts the team immediately.
 2. **AI Pull Request Summaries** — Automatically writes a clear description of every code change: what was modified, why it matters, and how to validate it.
@@ -20,6 +30,50 @@ Two Agentic-AI-Powered capabilities that run automatically inside the developmen
 | Compliance requires evidence of continuous scanning | Audit-ready reports are generated automatically on every change |
 | Code reviewers lack context on what changed | AI writes a structured summary instantly — no waiting for developers to document |
 | Manual security reviews are slow and inconsistent | Two scanning engines run in parallel on every change, every time, without exception |
+
+---
+
+## How It Works (at a Glance)
+
+```mermaid
+flowchart LR
+    A[Developer pushes code] --> B[Pull Request opened]
+    B --> D[Security scan triggered]
+    B --> C[AI PR Summary generated]
+    D --> E[Vulnerabilities detected?]
+    E -->|Yes| F[AI report + auto-fix PR + alert]
+    E -->|No| G[Clean bill of health]
+```
+
+### Low-Level Diagram: Security Autofix Pipeline — Five Stages
+
+```mermaid
+flowchart TD
+    A[Code change detected] --> B[Stage 1: Detect]
+    B --> C[Code QL Analysis — SAST]
+    B --> D[Dependabot Dependency Scan - SCA]
+    C --> E[Stage 2: Analyze]
+    D --> E
+    E --> F[AI generates prioritized report]
+    F --> G{Fixable issues found?}
+    G -->|Yes| H[Stage 3: Auto-Fix]
+    H --> I[Creates a fix PR automatically]
+    G -->|No| J[Report only]
+    F --> K[Stage 4: Alert]
+    K --> L[GitHub Issue created]
+    K --> M[PR comment posted]
+    K --> N[Slack notification sent]
+```
+
+| Stage | What Happens |
+|-------|--------------|
+| Detect | Scans code for insecure patterns AND checks all libraries against vulnerability databases |
+| Analyze | Deduplicates findings, classifies by severity, feeds to AI for prioritization |
+| Fix | Automatically creates a fix with dependency upgrades and corrections applied |
+| Report | AI generates a structured security report with remediation guidance |
+| Alert | Critical issues trigger notifications (PR comment, GitHub Issue, Slack) |
+
+**AI PR Summary** generates a structured description including: summary of changes, business context, validation steps, and a changelog entry.
 
 ---
 
@@ -116,41 +170,6 @@ flowchart LR
 | Branch | Any configured target branch (e.g., `main`, `develop`) |
 | Output | Security report + auto-fix PR + AI-written PR description |
 | Use case | Standard development flow — every code change is reviewed before merge |
-
----
-
-
-### Low-Level Diagram: Security Autofix Pipeline — Five Stages
-
-```mermaid
-flowchart TD
-    A[Code change detected] --> B[Stage 1: Detect]
-    B --> C[Code QL Analysis — SAST]
-    B --> D[Dependabot Dependency Scan - SCA]
-    C --> E[Stage 2: Analyze]
-    D --> E
-    E --> F[AI generates prioritized report]
-    F --> G{Fixable issues found?}
-    G -->|Yes| H[Stage 3: Auto-Fix]
-    H --> I[Creates a fix PR automatically]
-    G -->|No| J[Report only]
-    F --> K[Stage 4: Alert]
-    K --> L[GitHub Issue created]
-    K --> M[PR comment posted]
-    K --> N[Slack notification sent]
-```
-
-| Stage | What Happens |
-|-------|--------------|
-| Detect | Scans code for insecure patterns AND checks all libraries against vulnerability databases |
-| Analyze | Deduplicates findings, classifies by severity, feeds to AI for prioritization |
-| Fix | Automatically creates a fix with dependency upgrades and corrections applied |
-| Report | AI generates a structured security report with remediation guidance |
-| Alert | Critical issues trigger notifications (PR comment, GitHub Issue, Slack) |
-
-**AI PR Summary** generates a structured description including: summary of changes, business context, validation steps, and a changelog entry.
-
-
 
 ---
 
