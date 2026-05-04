@@ -329,6 +329,8 @@ jobs:
             echo "_(AI report unavailable — rate limit exceeded after ${MAX_RETRIES} retries)_" > results/security-report.md
           else
             REPORT=$(jq -r '.choices[0].message.content' /tmp/api_response.json)
+            # Strip markdown code fence wrapper if the model wrapped the output in ```markdown...```
+            REPORT=$(printf '%s\n' "$REPORT" | sed '1{/^```/d}; ${/^```$/d}')
             printf '%s' "$REPORT" > results/security-report.md
             echo "Security report generated ($(wc -c < results/security-report.md) bytes)"
           fi
@@ -663,27 +665,24 @@ jobs:
 
           SUMMARY=$(jq -r '.summary | "Critical: \(.critical) | High: \(.high) | Medium: \(.medium) | Low: \(.low)"' results/aggregated-findings.json)
 
-          COMMENT="## 🔒 Security Scan — Vulnerabilities Detected
-
-          **Findings:** ${SUMMARY}
-          **Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-          > ⚠️ Critical/high vulnerabilities were found on this branch. Please review before merging into \`main\`.
-          "
+          COMMENT_FILE=$(mktemp /tmp/pr-comment.XXXXXX.md)
+          printf '## 🔒 Security Scan — Vulnerabilities Detected\n\n' > "$COMMENT_FILE"
+          printf '**Findings:** %s\n' "$SUMMARY" >> "$COMMENT_FILE"
+          printf '**Workflow Run:** [%s](%s/actions/runs/%s)\n\n' \
+            '${{ github.run_id }}' \
+            '${{ github.server_url }}/${{ github.repository }}' \
+            '${{ github.run_id }}' >> "$COMMENT_FILE"
+          printf '> ⚠️ Critical/high vulnerabilities were found on this branch. Please review before merging into `main`.\n' >> "$COMMENT_FILE"
 
           if [ -f results/security-report.md ]; then
-            COMMENT="${COMMENT}
-
-          <details><summary>Full Security Report</summary>
-
-          $(cat results/security-report.md)
-
-          </details>"
+            printf '\n<details><summary>Full Security Report</summary>\n\n' >> "$COMMENT_FILE"
+            cat results/security-report.md >> "$COMMENT_FILE"
+            printf '\n</details>\n' >> "$COMMENT_FILE"
           fi
 
-          gh pr comment "${{ github.event.pull_request.number }}" \
+          gh pr comment '${{ github.event.pull_request.number }}' \
             --repo "$REPO" \
-            --body "$COMMENT"
+            --body-file "$COMMENT_FILE"
 
           echo "✅ Comment posted on PR #${{ github.event.pull_request.number }}"
 
@@ -697,20 +696,19 @@ jobs:
           SCAN_DATE=$(date -u +"%Y-%m-%d")
           TITLE="🔒 Security: Critical findings detected — ${SCAN_DATE}"
 
-          BODY="## Security Scan Alert
-
-          **Critical vulnerabilities detected** in the latest security scan.
-
-          **Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Triggered by:** ${{ github.event_name }}
-          **Branch:** ${{ github.ref_name }}
-
-          ---
-          "
+          ISSUE_FILE=$(mktemp /tmp/issue-body.XXXXXX.md)
+          printf '## Security Scan Alert\n\n' > "$ISSUE_FILE"
+          printf '**Critical vulnerabilities detected** in the latest security scan.\n\n' >> "$ISSUE_FILE"
+          printf '**Workflow Run:** [%s](%s/actions/runs/%s)\n' \
+            '${{ github.run_id }}' \
+            '${{ github.server_url }}/${{ github.repository }}' \
+            '${{ github.run_id }}' >> "$ISSUE_FILE"
+          printf '**Triggered by:** %s\n' '${{ github.event_name }}' >> "$ISSUE_FILE"
+          printf '**Branch:** %s\n\n---\n' '${{ github.ref_name }}' >> "$ISSUE_FILE"
 
           if [ -f results/security-report.md ]; then
-            BODY="${BODY}
-          $(cat results/security-report.md)"
+            printf '\n' >> "$ISSUE_FILE"
+            cat results/security-report.md >> "$ISSUE_FILE"
           fi
 
           # Ensure labels exist
@@ -720,7 +718,7 @@ jobs:
           gh issue create \
             --repo "$REPO" \
             --title "$TITLE" \
-            --body "$BODY" \
+            --body-file "$ISSUE_FILE" \
             --label "security,critical"
 
           echo "✅ Security issue created"
