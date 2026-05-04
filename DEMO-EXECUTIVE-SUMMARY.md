@@ -18,7 +18,7 @@ Security issues are easier and cheaper to address during development than after 
 
 Two AI-powered capabilities that run automatically inside the development workflow — requiring zero additional effort from developers:
 
-1. **Security Autofix Pipeline** — Continuously scans every code change for vulnerabilities, generates a prioritized report, auto-fixes what it can, and alerts the team immediately.
+1. **Security Autofix Pipeline** — Manually trigger security auto fix code change for vulnerabilities, generates a prioritized report, auto-fixes what it can, and alerts the team immediately.
 2. **AI Pull Request Summaries** — Automatically writes a clear description of every code change: what was modified, why it matters, and how to validate it.
 
 ---
