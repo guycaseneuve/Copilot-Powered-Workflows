@@ -35,50 +35,6 @@ Two AI-powered capabilities that run automatically inside the development workfl
 
 ---
 
-## How It Works (at a Glance)
-
-```mermaid
-flowchart LR
-    A[Developer pushes code] --> B[Pull Request opened]
-    B --> D[Security scan triggered]
-    B --> C[AI PR Summary generated]
-    D --> E[Vulnerabilities detected?]
-    E -->|Yes| F[AI report + auto-fix PR + alert]
-    E -->|No| G[Clean bill of health]
-```
-
-### Low-Level Diagram: Security Autofix Pipeline — Five Stages
-
-```mermaid
-flowchart TD
-    A[Code change detected] --> B[Stage 1: Detect]
-    B --> C[Code QL Analysis — SAST]
-    B --> D[Dependabot Dependency Scan - SCA]
-    C --> E[Stage 2: Analyze]
-    D --> E
-    E --> F[AI generates prioritized report]
-    F --> G{Fixable issues found?}
-    G -->|Yes| H[Stage 3: Auto-Fix]
-    H --> I[Creates a fix PR automatically]
-    G -->|No| J[Report only]
-    F --> K[Stage 4: Alert]
-    K --> L[GitHub Issue created]
-    K --> M[PR comment posted]
-    K --> N[Slack notification sent]
-```
-
-| Stage | What Happens |
-|-------|--------------|
-| Detect | Scans code for insecure patterns AND checks all libraries against vulnerability databases |
-| Analyze | Deduplicates findings, classifies by severity, feeds to AI for prioritization |
-| Fix | Automatically creates a fix with dependency upgrades and corrections applied |
-| Report | AI generates a structured security report with remediation guidance |
-| Alert | Critical issues trigger notifications (PR comment, GitHub Issue, Slack) |
-
-**AI PR Summary** generates a structured description including: summary of changes, business context, validation steps, and a changelog entry.
-
----
-
 ## How It Works — Trigger Modes
 
 The automation supports three distinct trigger modes, each suited to different scenarios. All modes run the same Security Autofix Pipeline and AI PR Summary logic — only the entry point differs.
@@ -185,6 +141,38 @@ flowchart LR
 | **AI PR Summary** | Latest changes on branch | Delta since last run | Changes in the PR |
 | **Auto-Fix PR** | Yes, if issues found | Yes, if new issues | Yes, if issues found |
 | **Alert sent** | Yes, on critical findings | Yes, on new critical findings | Yes, on critical findings |
+
+---
+
+### Low-Level Diagram: Security Autofix Pipeline — Five Stages
+
+```mermaid
+flowchart TD
+    A[Code change detected] --> B[Stage 1: Detect]
+    B --> C[Code QL Analysis — SAST]
+    B --> D[Dependabot Dependency Scan - SCA]
+    C --> E[Stage 2: Analyze]
+    D --> E
+    E --> F[AI generates prioritized report]
+    F --> G{Fixable issues found?}
+    G -->|Yes| H[Stage 3: Auto-Fix]
+    H --> I[Creates a fix PR automatically]
+    G -->|No| J[Report only]
+    F --> K[Stage 4: Alert]
+    K --> L[GitHub Issue created]
+    K --> M[PR comment posted]
+    K --> N[Slack notification sent]
+```
+
+| Stage | What Happens |
+|-------|--------------|
+| Detect | Scans code for insecure patterns AND checks all libraries against vulnerability databases |
+| Analyze | Deduplicates findings, classifies by severity, feeds to AI for prioritization |
+| Fix | Automatically creates a fix with dependency upgrades and corrections applied |
+| Report | AI generates a structured security report with remediation guidance |
+| Alert | Critical issues trigger notifications (PR comment, GitHub Issue, Slack) |
+
+**AI PR Summary** generates a structured description including: summary of changes, business context, validation steps, and a changelog entry.
 
 ---
 
